@@ -27,7 +27,7 @@ class Song(AudioFile):
 class Podcast(AudioFile):
 
     host = models.CharField(max_length=100)
-    participants = fields.ArrayField(base_field=models.CharField(max_length=100), size=10)
+    participants = fields.ArrayField(base_field=models.CharField(max_length=100), size=10, default=list)
     # participants = models.JSONField(validators=[validators.MaxLengthValidator(10)])
 
     class Meta:
