@@ -8,12 +8,14 @@ from rest_framework.test import APITestCase
 from rest_framework.reverse import reverse
 
 from core.constants import PODCAST, SONG, AUDIOBOOK
-from core.models import AudioFile, Song, Podcast
+from core.models import AudioBook, Song, Podcast
+from core.serializers import PodcastSerializer, AudioBookSerializer, SongSerializer
 
 
 class AudioFileCreateTests(APITestCase):
 
-    url = reverse('create-audio-file')
+    def setUp(self):
+        self.url = reverse('create-audio-file')
 
     def test_create_audio_file_without_data(self):
 
@@ -89,12 +91,9 @@ class AudioFileCreateTests(APITestCase):
             }
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data.get('name'), song_name)
-        self.assertEqual(response.data.get('duration'), song_duration)
+        self.assertEqual(response.data, SongSerializer(instance=Song.objects.get()).data)
         self.assertGreater(parse_datetime(response.data.get('uploaded_time')), now)
         self.assertEqual(Song.objects.count(), 1)
-        self.assertEqual(Song.objects.get().name, song_name)
-        self.assertEqual(Song.objects.get().duration, song_duration)
 
     def test_create_podcast_with_empty_metadata_body(self):
 
@@ -182,12 +181,152 @@ class AudioFileCreateTests(APITestCase):
             }
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data.get('name'), podcast_name)
-        self.assertEqual(response.data.get('host'), podcast_host)
-        self.assertEqual(response.data.get('participants'), podcast_participants)
+        self.assertEqual(response.data, PodcastSerializer(instance=Podcast.objects.get()).data)
         self.assertGreater(parse_datetime(response.data.get('uploaded_time')), now)
         self.assertEqual(Podcast.objects.count(), 1)
-        self.assertEqual(Podcast.objects.get().name, podcast_name)
-        self.assertEqual(Podcast.objects.get().duration, podcast_duration)
-        self.assertEqual(Podcast.objects.get().participants, podcast_participants)
 
+    def test_create_audiobook_with_empty_metadata_body(self):
+
+        response = self.client.post(path=self.url, data={"audiofiletype": AUDIOBOOK, "audiofilemetadata": {}})
+        self.assertEqual(
+            response.data,
+            {
+                "name": [
+                    "This field is required."
+                ],
+                "duration": [
+                    "This field is required."
+                ],
+                "author": [
+                    "This field is required."
+                ],
+                "narrator": [
+                    "This field is required."
+                ]
+            }
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_audiobook_metadata_field_data_type_validation(self):
+
+        response = self.client.post(
+            path=self.url,
+            data={
+                "audiofiletype": AUDIOBOOK,
+                "audiofilemetadata": {
+                    "name": {'k': 'v'},
+                    "duration": 12.091283,
+                    "author": [123],
+                    "narrator": [123]
+                }
+            }
+        )
+        self.assertEqual(
+            response.data,
+            {
+                "name": ["Not a valid string."],
+                "duration": ["A valid integer is required."],
+                "author": ["Not a valid string."],
+                "narrator": ["Not a valid string."]
+            }
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_audiobook_metadata_field_validation(self):
+
+        random_string = "".join(random.choices(f'{string.ascii_uppercase}{string.ascii_lowercase}', k=101))
+        response = self.client.post(
+            path=self.url,
+            data={
+                "audiofiletype": AUDIOBOOK,
+                "audiofilemetadata": {
+                    "name": random_string,
+                    "duration": 2147483648,
+                    "author": random_string,
+                    "narrator": random_string
+                }
+            }
+        )
+        self.assertEqual(
+            response.data,
+            {
+                "name": ["Ensure this field has no more than 100 characters."],
+                "duration": ["Ensure this value is less than or equal to 2147483647."],
+                "author": ["Ensure this field has no more than 100 characters."],
+                "narrator": ["Ensure this field has no more than 100 characters."]
+            }
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_audiobook(self):
+
+        audiobook_name = "The Psychology of Money"
+        audiobook_author = "Morgan Housel"
+        audiobook_narrated_by = "Chris Hill"
+        audiobook_duration = 214
+        now = timezone.now()
+        response = self.client.post(
+            path=self.url,
+            data={
+                "audiofiletype": AUDIOBOOK,
+                "audiofilemetadata": {
+                    "name": audiobook_name,
+                    "duration": audiobook_duration,
+                    "author": audiobook_author,
+                    "narrator": audiobook_narrated_by
+                }
+            }
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data, AudioBookSerializer(instance=AudioBook.objects.get()).data)
+        self.assertGreater(parse_datetime(response.data.get('uploaded_time')), now)
+        self.assertEqual(AudioBook.objects.count(), 1)
+
+
+class AudioFileDeleteTests(APITestCase):
+
+    def test_delete_podcast(self):
+
+        podcast = Podcast.objects.create(
+            name="The Real Python Podcast – Real Python",
+            participants=["Vishal", "Rahul", "Rohit", "Amogh"],
+            host="Dan Bader",
+            duration=214
+        )
+        api_url = reverse(
+            'common-actions-audio-file',
+            kwargs={'audiofiletype': PODCAST, 'audiofileid': podcast.id}
+        )
+        response = self.client.delete(path=api_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(Podcast.objects.count(), 0)
+
+    def test_delete_song(self):
+
+        song = Song.objects.create(
+            name="Rolex",
+            duration=214
+        )
+        api_url = reverse(
+            'common-actions-audio-file',
+            kwargs={'audiofiletype': SONG, 'audiofileid': song.id}
+        )
+        response = self.client.delete(path=api_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(Song.objects.count(), 0)
+
+    def test_delete_audiobook(self):
+
+        audiobook = AudioBook.objects.create(
+            name="The Real Python Podcast – Real Python",
+            author="Dan Bader",
+            narrator="Dan Bader",
+            duration=214
+        )
+        api_url = reverse(
+            'common-actions-audio-file',
+            kwargs={'audiofiletype': AUDIOBOOK, 'audiofileid': audiobook.id}
+        )
+        response = self.client.delete(path=api_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(AudioBook.objects.count(), 0)
