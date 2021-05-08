@@ -12,6 +12,24 @@ from core.models import AudioBook, Song, Podcast
 from core.serializers import PodcastSerializer, AudioBookSerializer, SongSerializer
 
 
+def create_audiofile_objects():
+
+    song = Song.objects.create(name='Rolex', duration=240)
+    podcast = Podcast.objects.create(
+        name='The Python Podcast',
+        duration=240,
+        participants=['Vishal', 'Rohit'],
+        host='Somebody'
+    )
+    audiobook = AudioBook.objects.create(
+        name='Some Audiobook',
+        duration=240,
+        narrator='Vishal',
+        author='Someone'
+    )
+    return song, podcast, audiobook
+
+
 class AudioFileCreateTests(APITestCase):
 
     def setUp(self):
@@ -31,9 +49,10 @@ class AudioFileCreateTests(APITestCase):
 
     def test_create_song_without_audio_metadata(self):
 
-        response = self.client.post(path=self.url, data={'audiofiletype': random.choice([AUDIOBOOK, SONG, PODCAST])})
-        self.assertEqual(response.data, {"audiofilemetadata": ["This field is required"]})
-        self.assertEqual(response.status_code, 400)
+        for audio_type in [AUDIOBOOK, SONG, PODCAST]:
+            response = self.client.post(path=self.url, data={'audiofiletype': audio_type})
+            self.assertEqual(response.data, {"audiofilemetadata": ["This field is required"]})
+            self.assertEqual(response.status_code, 400)
 
     def test_create_song_with_empty_metadata_body(self):
 
@@ -336,19 +355,7 @@ class AudioFileGetTests(APITestCase):
 
     def setUp(self):
 
-        self.song = Song.objects.create(name='Rolex', duration=240)
-        self.podcast = Podcast.objects.create(
-            name='The Python Podcast',
-            duration=240,
-            participants=['Vishal', 'Rohit'],
-            host='Somebody'
-        )
-        self.audiobook = AudioBook.objects.create(
-            name='Some Audiobook',
-            duration=240,
-            narrator='Vishal',
-            author='Someone'
-        )
+        self.song, self.podcast, self.audiobook = create_audiofile_objects()
 
     def test_get_song_by_id(self):
 
@@ -394,3 +401,90 @@ class AudioFileGetTests(APITestCase):
         response = self.client.get(url)
         self.assertEqual(response.data, AudioBookSerializer(AudioBook.objects.all(), many=True).data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class AudioFileUpdateTests(APITestCase):
+
+    def setUp(self):
+
+        self.song, self.podcast, self.audiobook = create_audiofile_objects()
+
+    def test_song_update_using_patch(self):
+
+        url = reverse('common-actions-audio-file', kwargs={'audiofiletype': SONG, 'audiofileid': self.song.id})
+        patch_response = self.client.patch(url, data={'name': 'Changed'})
+        self.assertEqual(patch_response.data, SongSerializer(Song.objects.get()).data)
+        self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
+
+    def test_audiobook_update_using_patch(self):
+
+        url = reverse(
+            'common-actions-audio-file',
+            kwargs={'audiofiletype': AUDIOBOOK, 'audiofileid': self.audiobook.id}
+        )
+        patch_response = self.client.patch(url, data={'name': 'Changed'})
+        self.assertEqual(patch_response.data, AudioBookSerializer(AudioBook.objects.get()).data)
+        self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
+
+    def test_podcast_update_using_patch(self):
+
+        url = reverse('common-actions-audio-file', kwargs={'audiofiletype': PODCAST, 'audiofileid': self.podcast.id})
+        patch_response = self.client.patch(url, data={'name': 'Changed'})
+        self.assertEqual(patch_response.data, PodcastSerializer(Podcast.objects.get()).data)
+        self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
+
+    def test_audio_file_using_put(self):
+
+        for audio_type in [SONG, PODCAST, AUDIOBOOK]:
+            url = reverse(
+                'common-actions-audio-file',
+                kwargs={'audiofiletype': audio_type, 'audiofileid': 1}
+            )
+            response = self.client.put(url, data={'name': 'Changed'})
+            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_song_using_put(self):
+
+        url = reverse(
+            'common-actions-audio-file',
+            kwargs={'audiofiletype': SONG, 'audiofileid': self.song.pk}
+        )
+        response = self.client.put(url, data={'name': 'Changed', 'duration': self.song.duration})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, SongSerializer(instance=Song.objects.get()).data)
+
+    def test_audiobook_using_put(self):
+
+        url = reverse(
+            'common-actions-audio-file',
+            kwargs={'audiofiletype': AUDIOBOOK, 'audiofileid': self.audiobook.pk}
+        )
+        response = self.client.put(
+            path=url,
+            data={
+                'name': 'Changed',
+                'duration': self.audiobook.duration,
+                'author': self.audiobook.author,
+                'narrator': 'Changed Narrator'
+            }
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, AudioBookSerializer(instance=AudioBook.objects.get()).data)
+
+    def test_podcast_using_put(self):
+
+        url = reverse(
+            'common-actions-audio-file',
+            kwargs={'audiofiletype': PODCAST, 'audiofileid': self.podcast.pk}
+        )
+        response = self.client.put(
+            path=url,
+            data={
+                'name': 'Changed',
+                'duration': self.audiobook.duration,
+                'host': 'Myself',
+                'Participants': []
+            }
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, PodcastSerializer(instance=Podcast.objects.get()).data)
