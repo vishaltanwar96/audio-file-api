@@ -330,3 +330,67 @@ class AudioFileDeleteTests(APITestCase):
         response = self.client.delete(path=api_url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertEqual(AudioBook.objects.count(), 0)
+
+
+class AudioFileGetTests(APITestCase):
+
+    def setUp(self):
+
+        self.song = Song.objects.create(name='Rolex', duration=240)
+        self.podcast = Podcast.objects.create(
+            name='The Python Podcast',
+            duration=240,
+            participants=['Vishal', 'Rohit'],
+            host='Somebody'
+        )
+        self.audiobook = AudioBook.objects.create(
+            name='Some Audiobook',
+            duration=240,
+            narrator='Vishal',
+            author='Someone'
+        )
+
+    def test_get_song_by_id(self):
+
+        url = reverse('common-actions-audio-file', kwargs={'audiofiletype': SONG, 'audiofileid': self.song.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.data, SongSerializer(instance=self.song).data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_get_podcast_by_id(self):
+
+        url = reverse('common-actions-audio-file', kwargs={'audiofiletype': PODCAST, 'audiofileid': self.podcast.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.data, PodcastSerializer(instance=self.podcast).data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_get_audiobook_by_id(self):
+
+        url = reverse(
+            'common-actions-audio-file',
+            kwargs={'audiofiletype': AUDIOBOOK, 'audiofileid': self.audiobook.pk}
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.data, AudioBookSerializer(instance=self.audiobook).data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_list_songs(self):
+
+        url = reverse('list-audio-files', kwargs={'audiofiletype': SONG})
+        response = self.client.get(url)
+        self.assertEqual(response.data, SongSerializer(Song.objects.all(), many=True).data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_list_podcasts(self):
+
+        url = reverse('list-audio-files', kwargs={'audiofiletype': PODCAST})
+        response = self.client.get(url)
+        self.assertEqual(response.data, PodcastSerializer(Podcast.objects.all(), many=True).data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_list_audiobooks(self):
+
+        url = reverse('list-audio-files', kwargs={'audiofiletype': AUDIOBOOK})
+        response = self.client.get(url)
+        self.assertEqual(response.data, AudioBookSerializer(AudioBook.objects.all(), many=True).data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
