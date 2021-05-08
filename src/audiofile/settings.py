@@ -13,21 +13,39 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 import configparser
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 CFG_PARSER = configparser.ConfigParser()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 CONFIG_DIR = BASE_DIR / 'config'
-CFG_PARSER.read(CONFIG_DIR / 'config.ini')
+CONFIG_FILE = CONFIG_DIR / 'config.ini'
+if not CONFIG_FILE.exists():
+    raise FileNotFoundError('config.ini not found! Please make sure a config.ini is present in config directory')
+
+CFG_PARSER.read(CONFIG_FILE)
+
+CONFIG_SECTION_OPTION_MAPPING = {
+    'MISC': ['DEBUG', 'SECRET_KEY'],
+    'DATABASE': ['NAME', 'HOST', 'USER', 'PORT', 'PASSWORD'],
+}
+
+for section, options in CONFIG_SECTION_OPTION_MAPPING.items():
+    if not CFG_PARSER.has_section(section):
+        raise ImproperlyConfigured(f'{section} section is required')
+    for option in options:
+        if not CFG_PARSER.has_option(section, option):
+            raise ImproperlyConfigured(f'{option} option is required in {section} section')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = CFG_PARSER.get('DEFAULT', 'SECRET_KEY')
+SECRET_KEY = CFG_PARSER.get('MISC', 'SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = CFG_PARSER.getboolean('DEFAULT', 'DEBUG')
+DEBUG = CFG_PARSER.getboolean('MISC', 'DEBUG')
 
 ALLOWED_HOSTS = ['*']
 

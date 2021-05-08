@@ -132,3 +132,6 @@ dmypy.json
 **.idea/
 *.sqlite3
 *.db
+
+config/*
+!config/sample.ini
